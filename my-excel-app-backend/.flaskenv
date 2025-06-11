@@ -3,7 +3,7 @@ FLASK_ENV=development # Enables debug mode and other development features
 # FLASK_DEBUG=1 # Alternative way to enable debug mode
 
 # --- Security ---
-APP_PASSWORD=yourSuperSecretPassword123 # CHANGE THIS FOR ANY REAL USE!
+APP_PASSWORD=password # CHANGE THIS FOR ANY REAL USE!
 
 # --- CORS ---
 # LOCAL_FRONTEND_URL=http://localhost:5173 # Default in app.py, can override here
