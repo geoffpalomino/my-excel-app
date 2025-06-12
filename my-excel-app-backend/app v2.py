@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 import tempfile
 import re
-import shutil
 from flask import Flask, request, jsonify, send_file, make_response, after_this_request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -14,10 +13,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
-EXPECTED_PASSWORD = os.environ.get("APP_PASSWORD", "password")
-# A single base directory for all temporary files and directories.
+EXPECTED_PASSWORD = os.environ.get("APP_PASSWORD", "yourSuperSecretPassword123")
 UPLOAD_FOLDER_BASE = 'uploads_temp'
+PROCESSED_FOLDER_BASE = 'processed_temp'
 os.makedirs(UPLOAD_FOLDER_BASE, exist_ok=True)
+os.makedirs(PROCESSED_FOLDER_BASE, exist_ok=True)
 
 # --- CORS Configuration ---
 LOCAL_FRONTEND_URL = os.environ.get("LOCAL_FRONTEND_URL", "http://localhost:5173")
@@ -34,16 +34,15 @@ CORS(app, resources={
     }
 })
 
-# --- Helper & Processing Functions ---
-
-def _remove_dir(path):
-    """Safely remove a directory and all its contents if it exists."""
+# --- Helper Functions ---
+def _remove_file(path):
+    """Safely remove a file if it exists."""
     try:
         if path and os.path.exists(path):
-            shutil.rmtree(path)
-            app.logger.info(f"Successfully removed temp directory: {path}")
+            os.remove(path)
+            app.logger.info(f"Successfully removed temp file: {path}")
     except OSError as e:
-        app.logger.error(f"Error removing temp directory {path}: {e}", exc_info=True)
+        app.logger.error(f"Error removing temp file {path}: {e}", exc_info=True)
 
 def _validate_columns(df_columns, expected_cols):
     """Check for missing columns and return a list of them."""
@@ -52,15 +51,16 @@ def _validate_columns(df_columns, expected_cols):
 def _process_student_parent_info(df):
     """Processes the Student-Parent information spreadsheet."""
     expected_cols = [
-        'School Name', 'ID Number', 'Student First Name', 'Student Last Name',
-        'Student Grade Level', 'Student Homeroom', 'Parent 1 First Name', 'Parent 1 Last Name',
-        'Parent 1 Email', 'Parent 1 Phone Number', 'Parent 1 Street Address', 'Parent 1 City',
-        'Parent 1 State', 'Parent 1 ZIP Code', 'Parent 2 First Name', 'Parent 2 Last Name',
-        'Parent 2 Email', 'Parent 2 Phone Number', 'Parent 2 Street Address', 'Parent 2 City',
+        'School Name', 'ID Number', 'Student First Name', 'Student Last Name', 
+        'Student Grade Level', 'Student Homeroom', 'Parent 1 First Name', 'Parent 1 Last Name', 
+        'Parent 1 Email', 'Parent 1 Phone Number', 'Parent 1 Street Address', 'Parent 1 City', 
+        'Parent 1 State', 'Parent 1 ZIP Code', 'Parent 2 First Name', 'Parent 2 Last Name', 
+        'Parent 2 Email', 'Parent 2 Phone Number', 'Parent 2 Street Address', 'Parent 2 City', 
         'Parent 2 State', 'Parent 2 ZIP Code'
     ]
     missing_cols = _validate_columns(df.columns, expected_cols)
     if missing_cols:
+        # MODIFICATION: Create a detailed, multi-line error list.
         error_details = ["Missing columns:", *missing_cols, "---", "Available columns:", *list(df.columns)]
         return False, {"message": "Column mismatch in Student-Parent file.", "details": error_details}
 
@@ -88,9 +88,12 @@ def _process_student_parent_info(df):
                     "State": row.get(f'Parent {i} State'),
                     "ZIP Code": row.get(f'Parent {i} ZIP Code')
                 }
+                
                 if email_key not in processed_data:
                     processed_data[email_key] = {"Parent_Info": {}, "Students_Info": [], "School_Name": school_name}
-                processed_data[email_key]["Parent_Info"].update({k: v for k, v in parent_details.items() if v})
+                
+                processed_data[email_key]["Parent_Info"].update({k:v for k,v in parent_details.items() if v})
+                
                 current_students = processed_data[email_key]["Students_Info"]
                 if len(current_students) < 4 and not any(s.get("ID Number") == student_info.get("ID Number") for s in current_students):
                     current_students.append(student_info)
@@ -103,36 +106,31 @@ def _process_student_parent_info(df):
             for key, value in s.items():
                 row_data[f"{key} Student {i+1}"] = value
         output_rows.append(row_data)
-
-    if not output_rows:
-        return True, pd.DataFrame()
-
-    output_df = pd.DataFrame(output_rows)
-    output_df['Is FacultyStaff'] = False
-
-    base_cols = ['Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff', 'Street Address', 'City', 'State', 'ZIP Code']
-    student_cols = sorted([col for col in output_df.columns if 'Student' in col])
-    final_cols_order = base_cols + student_cols
-    final_df = output_df.reindex(columns=final_cols_order)
-    return True, final_df
+    
+    return True, pd.DataFrame(output_rows)
 
 def _process_faculty_staff_info(df):
     """Processes the Faculty-Staff information spreadsheet."""
     expected_cols = ['School Name', 'ID Number', 'First Name', 'Last Name', 'Email', 'Phone Number', 'Street Address', 'City', 'State', 'ZIP Code']
     missing_cols = _validate_columns(df.columns, expected_cols)
     if missing_cols:
+        # MODIFICATION: Create a detailed, multi-line error list.
         error_details = ["Missing columns:", *missing_cols, "---", "Available columns:", *list(df.columns)]
         return False, {"message": "Column mismatch in Faculty-Staff file.", "details": error_details}
 
-    df_renamed = df.rename(columns={'First Name': 'Firstname', 'Last Name': 'Lastname', 'Phone Number': 'SMS'})
-    df_renamed['Is FacultyStaff'] = True
-    output_cols = ['Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff', 'Street Address', 'City', 'State', 'ZIP Code']
-    final_df = df_renamed.reindex(columns=output_cols)
-    return True, final_df
+    df_renamed = df.rename(columns={
+        'First Name': 'Firstname',
+        'Last Name': 'Lastname',
+        'Phone Number': 'SMS'
+    })
+    
+    output_cols = ['Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Street Address', 'City', 'State', 'ZIP Code']
+    return True, df_renamed[output_cols]
 
 def process_spreadsheet(filepath, original_filename):
     """Main router function to process spreadsheets based on filename."""
     name_part = os.path.splitext(original_filename)[0]
+    
     try:
         df = pd.read_excel(filepath)
     except Exception as e:
@@ -148,12 +146,18 @@ def process_spreadsheet(filepath, original_filename):
         return False, {"message": err_msg, "details": [f"Your filename: '{original_filename}'"]}
 
 def generate_output_download_name(original_input_basename):
-    """Generates an output filename by appending ' - Brevo' to the original name."""
+    """Generates a sanitized output filename."""
     name_part_without_ext = os.path.splitext(original_input_basename)[0]
-    new_name = f"{name_part_without_ext} - Brevo"
-    final_download_name = f"{new_name}.xlsx"
-    app.logger.info(f"Generated output filename: '{final_download_name}' from original '{original_input_basename}'")
-    return final_download_name
+    
+    if name_part_without_ext.endswith("- StudentParent Information"):
+        base_name = name_part_without_ext.replace("- StudentParent Information", "")
+    elif name_part_without_ext.endswith("- FacultyStaff Information"):
+        base_name = name_part_without_ext.replace("- FacultyStaff Information", "")
+    else:
+        base_name = name_part_without_ext
+
+    sanitized_base = re.sub(r'[^\w\s-]', '', base_name).strip()
+    return f"{sanitized_base} - Brevo Contacts.xlsx"
 
 # --- API Routes ---
 @app.route('/api/validate-password', methods=['POST', 'OPTIONS'])
@@ -167,6 +171,7 @@ def validate_password():
 @app.route('/api/upload-excel', methods=['POST', 'OPTIONS'])
 def upload_excel():
     if request.method == 'OPTIONS': return make_response(), 200
+
     if 'excel_file' not in request.files or not request.files['excel_file'].filename:
         return jsonify({"success": False, "message": "No file selected."}), 400
 
@@ -175,53 +180,44 @@ def upload_excel():
     
     if not (original_filename.endswith('.xlsx') or original_filename.endswith('.xls')):
         return jsonify({"success": False, "message": "Invalid file type. Please upload an .xlsx or .xls file."}), 400
-    
-    # Create a unique temporary directory for this request to hold all related files.
-    temp_dir = None
+
+    uploaded_file_path = None
+    processed_file_path = None
     try:
-        # Create the temporary directory within our base folder for organization.
-        temp_dir = tempfile.mkdtemp(dir=UPLOAD_FOLDER_BASE)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(original_filename)[1], dir=UPLOAD_FOLDER_BASE) as tmp_upload:
+            file.save(tmp_upload)
+            uploaded_file_path = tmp_upload.name
 
-        # Save the uploaded file to the unique temp directory.
-        uploaded_file_path = os.path.join(temp_dir, original_filename)
-        file.save(uploaded_file_path)
-
-        # Process the spreadsheet.
         success, result = process_spreadsheet(uploaded_file_path, original_filename)
-
-        # If processing fails, clean up the directory and return an error.
+        
         if not success:
-            _remove_dir(temp_dir) 
             app.logger.error(f"Processing failed for {original_filename}: {result}")
             return jsonify({"success": False, **result}), 400
 
         output_df = result
-        download_name = generate_output_download_name(original_filename)
-
-        # Save the processed file to the same unique temp directory.
-        processed_file_path = os.path.join(temp_dir, download_name)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx', dir=PROCESSED_FOLDER_BASE) as tmp_processed:
+            processed_file_path = tmp_processed.name
         output_df.to_excel(processed_file_path, index=False)
         
-        # This decorator registers the 'cleanup' function to be called after the
-        # request is fulfilled. It will remove the entire temporary directory.
+        download_name = generate_output_download_name(original_filename)
+
         @after_this_request
         def cleanup(response):
-            _remove_dir(temp_dir)
+            _remove_file(uploaded_file_path)
+            _remove_file(processed_file_path)
             return response
-
-        # Return the processed file to the user for download.
+            
         return send_file(
             processed_file_path,
             as_attachment=True,
             download_name=download_name,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
+
     except Exception as e:
-        # This block catches any unexpected errors during the process.
-        # It ensures that even if something goes wrong, we still attempt
-        # to clean up the temporary directory.
-        _remove_dir(temp_dir)
         app.logger.error(f"An unexpected error occurred in upload_excel: {e}", exc_info=True)
+        _remove_file(uploaded_file_path)
+        _remove_file(processed_file_path)
         return jsonify({"success": False, "message": "An internal server error occurred.", "details": [str(e)]}), 500
 
 if __name__ == '__main__':

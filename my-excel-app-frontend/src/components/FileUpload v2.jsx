@@ -76,47 +76,41 @@ function FileUpload() {
   const [error, setError] = useState({ message: "", details: [] });
   const [successMessage, setSuccessMessage] = useState("");
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = () => {
     setError({ message: "", details: [] });
     setSuccessMessage("");
-  }, []);
+  };
 
-  const validateAndSetFile = useCallback(
-    (selectedFile) => {
-      clearMessages();
-      if (
-        selectedFile &&
-        (selectedFile.type ===
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-          selectedFile.type === "application/vnd.ms-excel")
-      ) {
-        setFile(selectedFile);
-      } else {
-        setError({
-          message:
-            "Invalid file type. Please upload an Excel file (.xlsx, .xls).",
-        });
-        setFile(null);
-      }
-    },
-    [clearMessages]
-  );
+  const validateAndSetFile = (selectedFile) => {
+    clearMessages();
+    if (
+      selectedFile &&
+      (selectedFile.type ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        selectedFile.type === "application/vnd.ms-excel")
+    ) {
+      setFile(selectedFile);
+    } else {
+      setError({
+        message:
+          "Invalid file type. Please upload an Excel file (.xlsx, .xls).",
+      });
+      setFile(null);
+    }
+  };
 
   const handleFileChange = (e) => {
     validateAndSetFile(e.target.files[0]);
   };
 
-  const handleDrop = useCallback(
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        validateAndSetFile(e.dataTransfer.files[0]);
-      }
-    },
-    [validateAndSetFile]
-  );
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      validateAndSetFile(e.dataTransfer.files[0]);
+    }
+  }, []);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();

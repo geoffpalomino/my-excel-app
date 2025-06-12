@@ -25,3 +25,5 @@ dist-ssr
 
 .env
 .flaskenv
+
+../my-excel-app-backend/processed_temp/
