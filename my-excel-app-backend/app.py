@@ -110,9 +110,15 @@ def _process_student_parent_info(df):
     output_df = pd.DataFrame(output_rows)
     output_df['Is FacultyStaff'] = False
 
-    base_cols = ['Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff', 'Street Address', 'City', 'State', 'ZIP Code']
-    student_cols = sorted([col for col in output_df.columns if 'Student' in col])
-    final_cols_order = base_cols + student_cols
+    final_cols_order = [
+        'Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff',
+        'Street Address', 'City', 'State', 'ZIP Code',
+        'First Name Student 1', 'Last Name Student 1', 'ID Number Student 1', 'Grade Level Student 1', 'Homeroom Student 1',
+        'First Name Student 2', 'Last Name Student 2', 'ID Number Student 2', 'Grade Level Student 2', 'Homeroom Student 2',
+        'First Name Student 3', 'Last Name Student 3', 'ID Number Student 3', 'Grade Level Student 3', 'Homeroom Student 3',
+        'First Name Student 4', 'Last Name Student 4', 'ID Number Student 4', 'Grade Level Student 4', 'Homeroom Student 4'
+    ]
+
     final_df = output_df.reindex(columns=final_cols_order)
     return True, final_df
 
@@ -124,9 +130,22 @@ def _process_faculty_staff_info(df):
         error_details = ["Missing columns:", *missing_cols, "---", "Available columns:", *list(df.columns)]
         return False, {"message": "Column mismatch in Faculty-Staff file.", "details": error_details}
 
-    df_renamed = df.rename(columns={'First Name': 'Firstname', 'Last Name': 'Lastname', 'Phone Number': 'SMS'})
+    # --- MODIFIED SECTION ---
+    # Rename columns to match the desired output. 'ID Number' is kept as is.
+    df_renamed = df.rename(columns={
+        'First Name': 'Firstname',
+        'Last Name': 'Lastname',
+        'Phone Number': 'SMS'
+    })
     df_renamed['Is FacultyStaff'] = True
-    output_cols = ['Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff', 'Street Address', 'City', 'State', 'ZIP Code']
+
+    # Define the exact output column order as requested, now using 'ID Number'.
+    output_cols = [
+        'Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff',
+        'Street Address', 'City', 'State', 'ZIP Code', 'ID Number'
+    ]
+    # --- END MODIFIED SECTION ---
+
     final_df = df_renamed.reindex(columns=output_cols)
     return True, final_df
 
@@ -134,6 +153,7 @@ def process_spreadsheet(filepath, original_filename):
     """Main router function to process spreadsheets based on filename."""
     name_part = os.path.splitext(original_filename)[0]
     try:
+        app.logger.info(f"Processing file: '{original_filename}'")
         df = pd.read_excel(filepath)
     except Exception as e:
         app.logger.error(f"Error reading Excel file {original_filename}: {e}", exc_info=True)
@@ -145,6 +165,7 @@ def process_spreadsheet(filepath, original_filename):
         return _process_faculty_staff_info(df)
     else:
         err_msg = "Invalid file name. Name must end with '- StudentParent Information' or '- FacultyStaff Information'."
+        app.logger.warning(f"{err_msg} (Filename: '{original_filename}')")
         return False, {"message": err_msg, "details": [f"Your filename: '{original_filename}'"]}
 
 def generate_output_download_name(original_input_basename):
@@ -176,20 +197,14 @@ def upload_excel():
     if not (original_filename.endswith('.xlsx') or original_filename.endswith('.xls')):
         return jsonify({"success": False, "message": "Invalid file type. Please upload an .xlsx or .xls file."}), 400
     
-    # Create a unique temporary directory for this request to hold all related files.
     temp_dir = None
     try:
-        # Create the temporary directory within our base folder for organization.
         temp_dir = tempfile.mkdtemp(dir=UPLOAD_FOLDER_BASE)
-
-        # Save the uploaded file to the unique temp directory.
         uploaded_file_path = os.path.join(temp_dir, original_filename)
         file.save(uploaded_file_path)
 
-        # Process the spreadsheet.
         success, result = process_spreadsheet(uploaded_file_path, original_filename)
 
-        # If processing fails, clean up the directory and return an error.
         if not success:
             _remove_dir(temp_dir) 
             app.logger.error(f"Processing failed for {original_filename}: {result}")
@@ -198,18 +213,14 @@ def upload_excel():
         output_df = result
         download_name = generate_output_download_name(original_filename)
 
-        # Save the processed file to the same unique temp directory.
         processed_file_path = os.path.join(temp_dir, download_name)
         output_df.to_excel(processed_file_path, index=False)
         
-        # This decorator registers the 'cleanup' function to be called after the
-        # request is fulfilled. It will remove the entire temporary directory.
         @after_this_request
         def cleanup(response):
             _remove_dir(temp_dir)
             return response
 
-        # Return the processed file to the user for download.
         return send_file(
             processed_file_path,
             as_attachment=True,
@@ -217,12 +228,9 @@ def upload_excel():
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
-        # This block catches any unexpected errors during the process.
-        # It ensures that even if something goes wrong, we still attempt
-        # to clean up the temporary directory.
         _remove_dir(temp_dir)
         app.logger.error(f"An unexpected error occurred in upload_excel: {e}", exc_info=True)
         return jsonify({"success": False, "message": "An internal server error occurred.", "details": [str(e)]}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
