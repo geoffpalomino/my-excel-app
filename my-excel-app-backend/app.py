@@ -49,6 +49,21 @@ def _validate_columns(df_columns, expected_cols):
     """Check for missing columns and return a list of them."""
     return [col for col in expected_cols if col not in df_columns]
 
+def _format_sms_number(phone_number):
+    """Formats a phone number to be digits only and start with a '1'."""
+    if pd.isna(phone_number) or str(phone_number).strip() == '':
+        return ''
+    
+    digits_only = re.sub(r'\D', '', str(phone_number))
+
+    if not digits_only:
+        return ''
+
+    if not digits_only.startswith('1'):
+        digits_only = '1' + digits_only
+        
+    return digits_only
+
 def _process_student_parent_info(df):
     """Processes the Student-Parent information spreadsheet."""
     expected_cols = [
@@ -82,7 +97,7 @@ def _process_student_parent_info(df):
                 parent_details = {
                     "Firstname": row.get(f'Parent {i} First Name'),
                     "Lastname": row.get(f'Parent {i} Last Name'),
-                    "SMS": row.get(f'Parent {i} Phone Number'),
+                    "SMS": _format_sms_number(row.get(f'Parent {i} Phone Number')),
                     "Street Address": row.get(f'Parent {i} Street Address'),
                     "City": row.get(f'Parent {i} City'),
                     "State": row.get(f'Parent {i} State'),
@@ -108,7 +123,7 @@ def _process_student_parent_info(df):
         return True, pd.DataFrame()
 
     output_df = pd.DataFrame(output_rows)
-    output_df['Is FacultyStaff'] = False
+    output_df['Is FacultyStaff'] = 'No'
 
     final_cols_order = [
         'Email', 'School Name', 'Firstname', 'Lastname', 'SMS', 'Is FacultyStaff',
@@ -131,13 +146,16 @@ def _process_faculty_staff_info(df):
         return False, {"message": "Column mismatch in Faculty-Staff file.", "details": error_details}
 
     # --- MODIFIED SECTION ---
+    # Apply the SMS formatting to the 'Phone Number' column
+    df['Phone Number'] = df['Phone Number'].apply(_format_sms_number)
+
     # Rename columns to match the desired output. 'ID Number' is kept as is.
     df_renamed = df.rename(columns={
         'First Name': 'Firstname',
         'Last Name': 'Lastname',
         'Phone Number': 'SMS'
     })
-    df_renamed['Is FacultyStaff'] = True
+    df_renamed['Is FacultyStaff'] = 'Yes'
 
     # Define the exact output column order as requested, now using 'ID Number'.
     output_cols = [
