@@ -1,10 +1,14 @@
 // my-excel-app-frontend/src/components/PasswordPrompt.jsx
-import React, { useState } from "react";
+import React, { useState } from 'react';
 
-// Simple SVG Spinner component
+/**
+ * @component Spinner
+ * @description A simple SVG spinner component to indicate loading status.
+ * Not directly a function with params/returns in the traditional sense, but a presentational component.
+ */
 const Spinner = () => (
   <svg
-    className="animate-spin h-5 w-5 text-white"
+    className="animate-spin h-5 w-5 text-white" // Tailwind classes for styling and animation
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
     viewBox="0 0 24 24"
@@ -25,135 +29,115 @@ const Spinner = () => (
   </svg>
 );
 
-// SVG Icons for password visibility toggle
-const EyeIcon = ({ ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-
-const EyeOffIcon = ({ ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-    <line x1="2" x2="22" y1="2" y2="22" />
-  </svg>
-);
-
+/**
+ * @function PasswordPrompt
+ * @description A React functional component that renders a password prompt form.
+ * It handles user input for a password, submits it to a validation API,
+ * and calls a callback function upon successful validation.
+ *
+ * @param {object} props - The component's props.
+ * @param {function} props.onPasswordCorrect - Callback function to be executed when the entered password is validated successfully.
+ *
+ * @returns {JSX.Element} The rendered password prompt form.
+ */
 function PasswordPrompt({ onPasswordCorrect }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // State for password visibility
+  // State for the password input field.
+  // - password (string): The current value of the password input.
+  // - setPassword (function): Function to update the password state.
+  const [password, setPassword] = useState('');
 
+  // State for displaying error messages.
+  // - error (string): The error message to display. Empty if no error.
+  // - setError (function): Function to update the error message state.
+  const [error, setError] = useState('');
+
+  // State to manage the loading status during API call.
+  // - isLoading (boolean): True if the password validation is in progress, false otherwise.
+  // - setIsLoading (function): Function to update the loading state.
+  const [isLoading, setIsLoading] = useState(false);
+
+  /**
+   * @function handleSubmit
+   * @description Handles the form submission event.
+   * It prevents the default form submission, clears any previous errors, sets loading state,
+   * and makes an asynchronous POST request to the password validation API.
+   * Updates error state or calls `onPasswordCorrect` based on the API response.
+   *
+   * @param {React.SyntheticEvent} e - The form submission event object.
+   *
+   * @returns {Promise<void>}
+   */
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(true);
+    e.preventDefault(); // Prevent default browser form submission
+    setError(''); // Clear previous errors
+    setIsLoading(true); // Set loading state to true
+
     try {
-      const apiUrl = `${
-        import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
-      }/api/validate-password`;
+      // Determine the API URL from environment variables, defaulting to localhost:5000.
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/validate-password`;
+
+      // Make a POST request to the validation API.
       const response = await fetch(apiUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json', // Specify JSON content type
         },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password }), // Send password in the request body
       });
-      const data = await response.json();
+
+      const data = await response.json(); // Parse the JSON response
+
       if (response.ok && data.success) {
+        // If response is OK and API indicates success, call the callback.
         onPasswordCorrect();
       } else {
-        setError(data.message || "Invalid password.");
+        // Otherwise, set an error message from the API response or a default one.
+        setError(data.message || 'Invalid password.');
       }
     } catch (err) {
-      setError("Failed to connect to the server. Please try again.");
-      console.error("Password validation error:", err);
+      // Handle network errors or other issues with the fetch call.
+      setError('Failed to connect to the server. Please try again.');
+      console.error('Password validation error:', err);
     } finally {
+      // Reset loading state regardless of success or failure.
       setIsLoading(false);
     }
   };
 
+  // Render the password prompt UI.
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-100 p-4 font-sans">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-3xl font-bold mb-8 text-center text-slate-700">
-          Brevo Contacts Organizer
-        </h2>
-        <p className="text-center text-slate-500 mb-6">
-          Please enter the password to continue.
-        </p>
+        <h2 className="text-3xl font-bold mb-8 text-center text-slate-700">My Excel App</h2>
+        <p className="text-center text-slate-500 mb-6">Please enter the password to continue.</p>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="relative">
-            <label htmlFor="password_input" className="sr-only">
-              Password
-            </label>
+          <div>
+            <label htmlFor="password_input" className="sr-only">Password</label>
             <input
               id="password_input"
-              type={showPassword ? "text" : "password"} // Dynamically change type
+              type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)} // Update password state on change
               placeholder="Password"
               className="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-shadow duration-150 ease-in-out"
-              required
-              disabled={isLoading}
+              required // HTML5 form validation
+              disabled={isLoading} // Disable input when loading
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-indigo-600"
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? (
-                <EyeOffIcon className="h-5 w-5" />
-              ) : (
-                <EyeIcon className="h-5 w-5" />
-              )}
-            </button>
           </div>
-          {error && (
-            <p className="text-red-500 text-sm text-center font-medium">
-              {error}
-            </p>
-          )}
+          {error && <p className="text-red-500 text-sm text-center font-medium">{error}</p>} {/* Display error message if present */}
           <div>
             <button
               type="submit"
               className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150 ease-in-out disabled:bg-indigo-400 disabled:cursor-not-allowed"
-              disabled={isLoading}
+              disabled={isLoading} // Disable button when loading
             >
               {isLoading ? (
                 <>
-                  <Spinner />
+                  <Spinner /> {/* Show spinner when loading */}
                   <span className="ml-2">Verifying...</span>
                 </>
               ) : (
-                "Submit"
+                'Submit' // Show 'Submit' text when not loading
               )}
             </button>
           </div>
